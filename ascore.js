@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      2.3
 // @description  Detect and download audio files (.wav, .mp3, .ogg) from webpages into a ZIP file with progress tracking and notification badge
-// @author       YourName
+// @author       direPromise
 // @match        *://*/*
 // @grant        none
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.0/jszip.min.js
