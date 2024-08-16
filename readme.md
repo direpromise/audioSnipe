@@ -10,7 +10,7 @@
 ## How to Use
 - Install a userscript manager like [Tampermonkey](https://www.tampermonkey.net).
 - Create a new userscript and copy the contents of AudioSnipe into it.
-- Save the script and navigate to any webpage with audio files.
+- Save the script and navigate to any webpage with audio files, refresh the page if needed.
 - Click the AudioSnipe icon located in the top middle of the webpage to start detecting and downloading audio files.
 
 
