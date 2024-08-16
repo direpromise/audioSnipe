@@ -1,20 +1,34 @@
 // ==UserScript==
-// @name         Audio File Detector and Downloader with Progress Bar and Notification Badge
+// @name         audioSnipe
 // @namespace    http://tampermonkey.net/
-// @version      2.3
-// @description  Detect and download audio files (.wav, .mp3, .ogg) from webpages into a ZIP file with progress tracking and notification badge
+// @version      2.4
+// @description  Detect and fetch audio files (.wav, .mp3, .ogg) from webpages into a ZIP file
 // @author       direPromise
 // @match        *://*/*
 // @grant        none
-// @require      https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.0/jszip.min.js
-// @require      https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
+    // Constants
+    const AUDIO_EXTENSIONS = ['.wav', '.mp3', '.ogg'];
+
+    // List of words
+    var words = new Set(['Cream', 'Paper', 'Scissor', 'Blood', 'Scissor', 'Rock', 'Stone', 'Fire', 'Water', 'Earth', 'Air', 'Magic', 'Sweat']);
+
+    // Function to generate a random word
+    function getRandomWord() {
+        var array = Array.from(words);
+        return array[Math.floor(Math.random() * array.length)];
+    }
+
+    // Function to generate a new ZIP file name each time it's called
+    function getZipFileName() {
+        return 'audioSnipe-' + getRandomWord() + '.zip';
+    }
+
     function detectAudioFiles() {
-        const audioExtensions = ['.wav', '.mp3', '.ogg'];
         const audioFiles = new Set();
 
         // Detect audio files from <audio> elements and their sources
@@ -23,25 +37,29 @@
 
             audio.querySelectorAll('source').forEach(source => {
                 const src = source.src;
-                if (src && audioExtensions.some(ext => src.endsWith(ext))) {
+                if (src && AUDIO_EXTENSIONS.some(ext => src.endsWith(ext))) {
                     sources.add(src);
                 }
             });
 
             // If the <audio> element itself has a src, add it only if it's not already in sources
             const src = audio.src;
-            if (src && audioExtensions.some(ext => src.endsWith(ext)) && !sources.has(src)) {
+            if (src && AUDIO_EXTENSIONS.some(ext => src.endsWith(ext)) && !src.includes('index.php') && !sources.has(src)) {
                 sources.add(src);
             }
 
             // Add all unique sources to audioFiles
-            sources.forEach(source => audioFiles.add(source));
+            sources.forEach(source => {
+                if (source) { // Check for null or undefined
+                    audioFiles.add(source);
+                }
+            });
         });
 
         // Detect audio files from direct <a> links
         document.querySelectorAll('a').forEach(link => {
             const href = link.href;
-            if (href && audioExtensions.some(ext => href.endsWith(ext)) && !href.includes('index.php')) {
+            if (href && AUDIO_EXTENSIONS.some(ext => href.endsWith(ext)) && !href.includes('index.php') && !href.includes('/wiki/File:')) {
                 audioFiles.add(href);
             }
         });
@@ -107,13 +125,13 @@
         const zip = new JSZip();
         const { progressBar, progressText, progressBarContainer } = createProgressBar();
         let completed = 0;
-        const addedFiles = {};
+        const addedFiles = new Set();
 
         for (const file of files) {
             try {
                 let fileName = getFileName(file);
 
-                if (!fileName.startsWith('File:') && !addedFiles[fileName]) {
+                if (!fileName.startsWith('File:') && !addedFiles.has(fileName)) {
                     console.log(`Fetching: ${fileName} from ${file}`); // Log file being fetched
                     const response = await fetch(file);
 
@@ -126,7 +144,7 @@
                     console.log(`Fetched ${fileName} with MIME type: ${blob.type}`); // Log fetched file type
 
                     zip.file(fileName, blob);
-                    addedFiles[fileName] = true;
+                    addedFiles.add(fileName);
 
                     completed++;
                     const progress = Math.round((completed / files.length) * 100);
@@ -137,12 +155,12 @@
             }
         }
 
-        if (Object.keys(addedFiles).length > 0) {
+        if (addedFiles.size > 0) {
             updateProgressBar(100, 'Compressing files into ZIP...', progressBar, progressText);
             const zipBlob = await zip.generateAsync({ type: 'blob' });
 
             if (typeof saveAs !== 'undefined') {
-                saveAs(zipBlob, 'audio_files.zip');
+                saveAs(zipBlob, getZipFileName());
             } else {
                 console.error('FileSaver.js is not loaded or saveAs is not defined.');
             }
@@ -205,22 +223,34 @@
             button.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
         });
 
-        const audioFiles = detectAudioFiles();
-        if (audioFiles.length > 0) {
-            const badge = createNotificationBadge(audioFiles.length / 2);
-            button.appendChild(badge);
-        }
+        document.body.appendChild(button);
 
+        // Attach an event listener to the download button
         button.addEventListener('click', () => {
+            const audioFiles = detectAudioFiles();
+
+            // Create a notification badge and attach it to the button
+            const badge = createNotificationBadge(audioFiles.length);
+            button.appendChild(badge);
+
             downloadFilesAsZip(audioFiles);
         });
-
-        document.body.appendChild(button);
     }
 
-    function main() {
-        createDownloadButton();
+    // Function to load an external script dynamically
+    function loadScript(url, callback) {
+        const script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.src = url;
+        script.onload = callback;
+        document.head.appendChild(script);
     }
 
-    main();
+    // Dynamically load JSZip and FileSaver libraries, then initialize the script
+    loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.0/jszip.min.js', () => {
+        loadScript('https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js', () => {
+            // Libraries are loaded, create the download button
+            createDownloadButton();
+        });
+    });
 })();
